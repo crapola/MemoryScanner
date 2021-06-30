@@ -1,0 +1,13 @@
+files=["main.cpp"]
+#
+import os
+workspace_name=os.path.basename(os.getcwd())
+exe_name=workspace_name
+out="bin/"
+files=[out+x for x in files]
+VariantDir(out,".",duplicate=0)
+warnings="-Wall -Wextra -Wshadow -Wnon-virtual-dtor -pedantic"
+env=Environment()
+env.Program(out+'test_program',files,
+CCFLAGS=["-std=c++17",warnings.split(),"-O3"]
+)
