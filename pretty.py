@@ -12,16 +12,16 @@ def pretty_size(s)->str:
 	]
 	for factor,suffix in units:
 		if s>=factor:
-				break
+			break
 	amount=s/factor
 	if factor==1:
 		amount=int(amount)
 	if isinstance(suffix, tuple):
-			singular,multiple=suffix
-			if amount==1:
-					suffix=singular
-			else:
-					suffix=multiple
+		singular,multiple=suffix
+		if amount==1:
+			suffix=singular
+		else:
+			suffix=multiple
 	return str(amount)+suffix
 
 def format_big_list(lst:Iterable)->str:

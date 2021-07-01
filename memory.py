@@ -55,6 +55,12 @@ class MemoryBlocks(MutableMapping):
 					found+=len(what)
 		return tuple(results)
 
+	def size(self)->int:
+		result=0
+		for v in self._store.values():
+			result=result+len(v)
+		return result
+
 def scan_memory(handle:HANDLE)->MemoryBlocks:
 	mem_info=MEMORY_BASIC_INFORMATION()
 	addr=0
@@ -68,7 +74,7 @@ def scan_memory(handle:HANDLE)->MemoryBlocks:
 				size_read=SIZE_T()
 				x=ReadProcessMemory(handle,mem_info.BaseAddress,byref(buffer),mem_info.RegionSize,byref(size_read))
 				if x:
-					print(f"Read {size_read.value} bytes.")
+					#print(f"Read {size_read.value} bytes.")
 					result[mem_info.BaseAddress]=buffer.raw
 				else:
 					PrintLastError("ReadProcessMemory")

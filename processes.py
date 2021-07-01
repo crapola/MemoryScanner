@@ -64,6 +64,8 @@ def find_pid_by_process_name(name:str)->int:
 	TODO: return all of them...
 	"""
 	procs=processes()
+	for k,v in sorted(procs.items()):
+		print(f"{k}: '{v}'")
 	try:
 		return list(procs.keys())[list(procs.values()).index(name)]
 	except ValueError:

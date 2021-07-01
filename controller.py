@@ -37,14 +37,14 @@ class Controller:
 
 	def _cmd_poke(self,tokens)->None:
 		try:
-			ok=False
+			ok=True
 			value=int(tokens[2])
 			if tokens[1]=="*":
 				for m in self._matches:
-					ok=ok or memory.write(struct.pack("i",value),self._handle,m)
+					ok=ok and memory.write(struct.pack("i",value),self._handle,m)
 			else:
 				address=int(tokens[1])
-				ok=ok or memory.write(struct.pack("i",value),self._handle,address)
+				ok=ok and memory.write(struct.pack("i",value),self._handle,address)
 			print(("Poke failed!","Poke successful.")[ok])
 		except (IndexError,ValueError):
 			raise Controller.CommandError
@@ -61,7 +61,7 @@ class Controller:
 			user_input=self._input()
 			pid=processes.find_pid_by_process_name(user_input)
 			if pid==-1:
-					print(f"Process '{user_input}' not found.")
+				print(f"Process '{user_input}' not found.")
 			else:
 				print(f"Process '{user_input}' has PID {pid}.")
 				break
@@ -74,7 +74,6 @@ class Controller:
 		return user_input
 
 	def _loop(self)->None:
-		result=memory.scan_memory(self._handle)
 		user_input=""
 		while user_input!="q":
 			print("Enter command")
@@ -85,6 +84,7 @@ class Controller:
 				print(f"Search for integer {number}.")
 				print(f"History: {self._history}")
 				result=memory.scan_memory(self._handle)
+				print(f"Total size: {pretty.pretty_size(result.size())}.")
 				new_matches=set(result.search(struct.pack('i',number)))
 				if len(self._matches)==0:
 					self._matches=new_matches
@@ -112,7 +112,7 @@ class Controller:
 
 def main():
 	def mock_find_pid_by_process_name(s):
-		return 1000 if s=="yo" else -1
+		return 1000 if s=="test 123" else -1
 
 	def mock_scan_memory(handle):
 		return memory.MemoryBlocks({0:b"d\x00\x00\x00\x0C\x00\x00\x00____",64:b"abcdefghd\0\0\0\0\1\2\50\0\0\0"})
