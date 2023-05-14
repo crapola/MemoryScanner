@@ -71,6 +71,10 @@ def find_pid_by_process_name(name:str)->int:
 	except ValueError:
 		return -1
 
+def print_processes()->None:
+	for k,v in sorted(processes().items()):
+		print(f"{k}: '{v}'")
+
 def process_name(handle:HANDLE)->str:
 	name=ctypes.create_string_buffer(256)
 	string_length=GetProcessImageFileNameA(handle,name,256)

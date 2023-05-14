@@ -44,6 +44,17 @@ class MemoryBlocks(MutableMapping):
 				self._store[p_k]=p_v+v
 			prev=(k,v,k+len(v))
 
+	def get_value(self,address:int):
+		""" Get value from address. Return None if address not in blocks. """
+		addresses=list(filter(lambda x:x<=address,self._store.keys()))
+		if len(addresses)==0:
+			return None
+		closest_block=min(addresses,key=lambda x:abs(x-address))
+		offset=address-closest_block
+		if offset>=len(self._store.__getitem__(closest_block)):
+			return None
+		return self._store.__getitem__(closest_block)[offset]
+
 	def search(self,what:bytes)->Tuple[int]:
 		results=[]
 		for k,v in self._store.items():
@@ -86,3 +97,13 @@ def scan_memory(handle:HANDLE)->MemoryBlocks:
 def write(data:bytes,handle:HANDLE,address:LPCVOID)->bool:
 	size_written=SIZE_T()
 	return WriteProcessMemory(handle,address,data,len(data),size_written)
+
+def main():
+	m=MemoryBlocks({123:[45,0,1,2],127:[55,54],500:[500]*40})
+	print(m)
+	print(m.get_value(127))
+	print(m.get_value(128))
+	print(m.get_value(129))
+	print(m.get_value(539))
+if __name__=="__main__":
+	main()

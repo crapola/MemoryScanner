@@ -1,3 +1,4 @@
+
 import struct
 
 import memory
@@ -5,7 +6,12 @@ import pretty
 import processes
 import win32
 
+
 class Controller:
+
+	# Search types.
+	INT32=0
+	FLOAT32=1
 
 	class CommandError(Exception):
 		pass
@@ -15,9 +21,15 @@ class Controller:
 		self._commands=[]
 		self._commands.append(("help","h",self._cmd_help,"Help"))
 		self._commands.append(("poke","p",self._cmd_poke,"Poke <address> <value> or Poke * <value> to poke all matches."))
-		self._commands.append(("reset","r",self._cmd_reset,"Restart search"))
+		self._commands.append(("reset","r",self._cmd_reset,"Restart search."))
+		self._commands.append(("greater","+",self._cmd_find_greater,"Find greater values."))
+		self._commands.append(("lesser","-",self._cmd_find_lesser,"Find lesser values."))
 		self._cmd_reset(None)
-		self._idiot=0
+
+		self._type:int=-1
+		self._history=[]
+		self._matches:set[int]=set() # Addresses.
+		self.result=None
 
 	def __del__(self):
 		ok=("Error","OK")[win32.CloseHandle(self._handle)]
@@ -28,6 +40,43 @@ class Controller:
 		if not self._handle:
 			return
 		self._loop()
+
+	def _cmd_find_greater(self,args)->None:
+		pass
+
+	def _cmd_find_lesser(self,args)->None:
+		print("Find lesser...",args)
+		current=memory.scan_memory(self._handle)
+		if self.result:
+			for k,v in self.result.items():
+				#print(k,v)
+				for i,data,other_data in enumerate(zip(v,current[k])):
+					#print(i,data,other_data)
+					if other_data<data:
+						print(i,data,other_data)
+						self._matches.add(k+i)
+		else:
+			print("Error...")
+		self.result=current
+
+	def _cmd_find_value(self,value):
+		""" value: any """
+		self._history.append(value)
+		print(f"Search for {['integer','float'][self._type]} {value}.")
+		print(f"History: {self._history}")
+		result=memory.scan_memory(self._handle)
+		print(f"Total size: {pretty.pretty_size(result.size())}.")
+		encoding=['i','f'][self._type]
+		new_matches=set(result.search(struct.pack(encoding,value)))
+		if len(self._matches)==0:
+			self._matches=new_matches
+		else:
+			self._matches=self._matches.intersection(new_matches)
+		if len(self._matches)>0:
+			print(f"{len(self._matches)} matches.\nAddresses: {pretty.format_big_list(self._matches)}")
+		else:
+			print("No matches.")#; search reset.")
+			#self._history=[]
 
 	def _cmd_help(self,tokens)->None:
 		print("Available commands:")
@@ -40,6 +89,7 @@ class Controller:
 			ok=True
 			value=int(tokens[2])
 			if tokens[1]=="*":
+				pass
 				for m in self._matches:
 					ok=ok and memory.write(struct.pack("i",value),self._handle,m)
 			else:
@@ -55,17 +105,27 @@ class Controller:
 		self._history=[]
 
 	def _get_process_handle(self)->None:
-		pid=-1
-		while pid==-1:
-			print("Enter executable name:")
-			user_input=self._input()
-			pid=processes.find_pid_by_process_name(user_input)
-			if pid==-1:
-				print(f"Process '{user_input}' not found.")
+		while self._handle==None:
+			print("Enter executable name, PID or nothing to list processes:")
+			# Get input.
+			user_input:str=self._input()
+			if user_input:
+				if user_input.isdigit():
+					pid=int(user_input)
+				else:
+					pid=processes.find_pid_by_process_name(user_input)
+					if pid==-1:
+						print(f"Process '{user_input}' not found.")
+					else:
+						print(f"Process '{user_input}' has PID {pid}.")
+				self._handle=win32.OpenProcess(0x001F0FFF,False,pid)
+				if not self._handle:
+					print(f"Invalid PID: {pid}.")
+					self._handle=None
 			else:
-				print(f"Process '{user_input}' has PID {pid}.")
-				break
-		self._handle=win32.OpenProcess(0x001F0FFF,False,pid)
+				# List processes if entered nothing.
+				processes.print_processes()
+
 
 	def _input(self)->str:
 		user_input=input(">")
@@ -79,43 +139,33 @@ class Controller:
 			print("Enter command")
 			user_input=input(">")
 			try:
-				number=int(user_input)
-				self._history.append(number)
-				print(f"Search for integer {number}.")
-				print(f"History: {self._history}")
-				result=memory.scan_memory(self._handle)
-				print(f"Total size: {pretty.pretty_size(result.size())}.")
-				new_matches=set(result.search(struct.pack('i',number)))
-				if len(self._matches)==0:
-					self._matches=new_matches
+				if user_input.isdigit():
+					# Has only digit, so we treat as int32.
+					self._type=Controller.INT32
+					self._cmd_find_value(int(user_input))
+				elif user_input.replace(".","",1).isdigit():
+					# Is float32.
+					self._type=Controller.FLOAT32
+					self._cmd_find_value(float(user_input))
 				else:
-					self._matches=self._matches.intersection(new_matches)
-				if len(self._matches)>0:
-					print(f"{len(self._matches)} matches.\nAddresses: {pretty.format_big_list(self._matches)}")
-				else:
-					print("No matches; search reset.")
-					self._history=[]
+					if user_input:
+						tokens=user_input.split()
+						for c in self._commands:
+							if tokens[0].casefold()==c[0] or tokens[0].casefold()==c[1]:
+								try:
+									c[2](tokens)
+								except Controller.CommandError:
+									print(c[3])
 			except ValueError:
-				self._idiot=self._idiot+1
-				if user_input:
-					tokens=user_input.split()
-					for c in self._commands:
-						if tokens[0].casefold()==c[0] or tokens[0].casefold()==c[1]:
-							try:
-								c[2](tokens)
-							except Controller.CommandError:
-								print(c[3])
-							self._idiot=0
-				if self._idiot>5:
-					print("Enter 'help' for help!")
-					self._idiot=0
+				pass
 
 def main():
 	def mock_find_pid_by_process_name(s):
-		return 1000 if s=="test 123" else -1
+		return 1000 if s=="test" else -1
 
 	def mock_scan_memory(handle):
-		return memory.MemoryBlocks({0:b"d\x00\x00\x00\x0C\x00\x00\x00____",64:b"abcdefghd\0\0\0\0\1\2\50\0\0\0"})
+		# 1000: float32 100.0 0x48C80000
+		return memory.MemoryBlocks({0:b"d\x00\x00\x00\x0C\x00\x00\x00____",64:b"abcdefghd\0\0\0\0\1\2\50\0\0\0",1000:b"\x00\x00\xc8\x42"})
 
 	def mock_write(data,handle,address):
 		if address==0:
