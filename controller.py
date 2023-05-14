@@ -75,8 +75,7 @@ class Controller:
 		if len(self._matches)>0:
 			print(f"{len(self._matches)} matches.\nAddresses: {pretty.format_big_list(self._matches)}")
 		else:
-			print("No matches.")#; search reset.")
-			#self._history=[]
+			print("No matches.")
 
 	def _cmd_help(self,tokens)->None:
 		print("Available commands:")
@@ -87,14 +86,27 @@ class Controller:
 	def _cmd_poke(self,tokens)->None:
 		try:
 			ok=True
-			value=int(tokens[2])
+			value:str=tokens[2]
+			pack_type=""
+			# Convert user input to bytes.
+			try:
+				value=int(value)
+				pack_type="i"
+			except ValueError:
+				try:
+					value=float(value)
+					pack_type="f"
+				except ValueError:
+					raise Controller.CommandError
+			data:bytes=struct.pack(pack_type,value)
+			# Write at address.
 			if tokens[1]=="*":
 				pass
 				for m in self._matches:
-					ok=ok and memory.write(struct.pack("i",value),self._handle,m)
+					ok=ok and memory.write(data,self._handle,m)
 			else:
 				address=int(tokens[1])
-				ok=ok and memory.write(struct.pack("i",value),self._handle,address)
+				ok=ok and memory.write(data,self._handle,address)
 			print(("Poke failed!","Poke successful.")[ok])
 		except (IndexError,ValueError):
 			raise Controller.CommandError
@@ -106,7 +118,7 @@ class Controller:
 
 	def _get_process_handle(self)->None:
 		while self._handle==None:
-			print("Enter executable name, PID or nothing to list processes:")
+			print("Enter executable name, PID, or nothing to list processes:")
 			# Get input.
 			user_input:str=self._input()
 			if user_input:
