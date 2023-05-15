@@ -1,3 +1,4 @@
+import struct
 from collections.abc import MutableMapping
 from ctypes import byref, create_string_buffer, sizeof
 from ctypes.wintypes import HANDLE, LPCVOID
@@ -5,6 +6,7 @@ from typing import Tuple
 
 from win32 import (MEMORY_BASIC_INFORMATION, SIZE_T, PrintLastError,
                    ReadProcessMemory, VirtualQueryEx, WriteProcessMemory)
+
 
 class MemoryBlocks(MutableMapping):
 	""" Dictionary Dict[int,bytes] """
@@ -44,16 +46,19 @@ class MemoryBlocks(MutableMapping):
 				self._store[p_k]=p_v+v
 			prev=(k,v,k+len(v))
 
-	def get_value(self,address:int):
+	def read_value_byte(self,address:int)->int:
 		""" Get value from address. Return None if address not in blocks. """
-		addresses=list(filter(lambda x:x<=address,self._store.keys()))
-		if len(addresses)==0:
+		block=self._block_from_absolute_address(address)
+		return self._store.__getitem__(block[0])[block[1]] if block else None
+
+	def read_value_int32(self,address:int)->int:
+		""" Get value from address. Return None if address not in blocks. """
+		block_info=self._block_from_absolute_address(address)
+		if not block_info:
 			return None
-		closest_block=min(addresses,key=lambda x:abs(x-address))
-		offset=address-closest_block
-		if offset>=len(self._store.__getitem__(closest_block)):
-			return None
-		return self._store.__getitem__(closest_block)[offset]
+		closest_block,offset=block_info
+		read=self._store.__getitem__(closest_block)[offset:offset+4]
+		return struct.unpack("i",read)[0]
 
 	def search(self,what:bytes)->Tuple[int]:
 		results=[]
@@ -71,6 +76,20 @@ class MemoryBlocks(MutableMapping):
 		for v in self._store.values():
 			result=result+len(v)
 		return result
+
+	def _block_from_absolute_address(self,address)->tuple[int,int]:
+		"""
+		Convert absolute address into tuple (block key,offset).
+		Return None if out of bounds.
+		"""
+		addresses=list(filter(lambda x:x<=address,self._store.keys()))
+		if len(addresses)==0:
+			return None
+		closest_block=min(addresses,key=lambda x:abs(x-address))
+		offset=address-closest_block
+		if offset>=len(self._store.__getitem__(closest_block)):
+			return None
+		return (closest_block,offset)
 
 def scan_memory(handle:HANDLE)->MemoryBlocks:
 	mem_info=MEMORY_BASIC_INFORMATION()
@@ -99,11 +118,13 @@ def write(data:bytes,handle:HANDLE,address:LPCVOID)->bool:
 	return WriteProcessMemory(handle,address,data,len(data),size_written)
 
 def main():
-	m=MemoryBlocks({123:[45,0,1,2],127:[55,54],500:[500]*40})
+	m=MemoryBlocks({123:b"\0\1\x00\x00",127:[55,54],500:[500]*40})
 	print(m)
-	print(m.get_value(127))
-	print(m.get_value(128))
-	print(m.get_value(129))
-	print(m.get_value(539))
+	print(m.read_value_byte(126))
+	print(m.read_value_byte(127))
+	print(m.read_value_byte(128))
+	print(m.read_value_byte(129))
+	print(m.read_value_byte(539))
+	print(m.read_value_int32(123))
 if __name__=="__main__":
 	main()
