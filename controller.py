@@ -201,9 +201,8 @@ def main():
 		return mem
 
 	def mock_write(data,handle,address):
-		mem[address]=data
+		mem.write(address,data)
 		print(f"Mock write {data} at {address}.")
-		#print(mem)
 		for k,v in mem.items():
 			print(k," ",v)
 		return True

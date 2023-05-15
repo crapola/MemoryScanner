@@ -47,12 +47,12 @@ class MemoryBlocks(MutableMapping):
 			prev=(k,v,k+len(v))
 
 	def read_value_byte(self,address:int)->int:
-		""" Get value from address. Return None if address not in blocks. """
+		""" Read value from address. Return None if address not in blocks. """
 		block=self._block_from_absolute_address(address)
 		return self._store.__getitem__(block[0])[block[1]] if block else None
 
 	def read_value_int32(self,address:int)->int:
-		""" Get value from address. Return None if address not in blocks. """
+		""" Read value from address. Return None if address not in blocks. """
 		block_info=self._block_from_absolute_address(address)
 		if not block_info:
 			return None
@@ -77,7 +77,20 @@ class MemoryBlocks(MutableMapping):
 			result=result+len(v)
 		return result
 
-	def _block_from_absolute_address(self,address)->tuple[int,int]:
+	def write(self,address:int,data:bytes)->bool:
+		block_info=self._block_from_absolute_address(address)
+		if not block_info:
+			return False
+		closest_block,offset=block_info
+		target=bytearray(self._store[closest_block])
+		# Fail if there's no room in block.
+		if offset+len(data)>len(target):
+			return False
+		target[offset:offset+len(data)]=data
+		self._store[closest_block]=bytes(target)
+		return True
+
+	def _block_from_absolute_address(self,address:int)->tuple[int,int]:
 		"""
 		Convert absolute address into tuple (block key,offset).
 		Return None if out of bounds.
@@ -118,7 +131,7 @@ def write(data:bytes,handle:HANDLE,address:LPCVOID)->bool:
 	return WriteProcessMemory(handle,address,data,len(data),size_written)
 
 def main():
-	m=MemoryBlocks({123:b"\0\1\x00\x00",127:[55,54],500:[500]*40})
+	m=MemoryBlocks({123:b"\0\1\x00\x00\0",128:[55,54],500:[500]*40})
 	print(m)
 	print(m.read_value_byte(126))
 	print(m.read_value_byte(127))
@@ -126,5 +139,7 @@ def main():
 	print(m.read_value_byte(129))
 	print(m.read_value_byte(539))
 	print(m.read_value_int32(123))
+	print(m.write(123,b"\1\2\3\4\5"))
+	print(m[123])
 if __name__=="__main__":
 	main()
