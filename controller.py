@@ -1,11 +1,16 @@
 
 import struct
+from typing import NamedTuple
 
 import memory
 import pretty
 import processes
 import win32
 
+
+class Match(NamedTuple):
+	address:int
+	value:float|int
 
 class Controller:
 
@@ -26,8 +31,7 @@ class Controller:
 		self._commands.append(("lesser","-",self._cmd_find_lesser,"Find lesser values."))
 		self._cmd_reset(None)
 
-		self._type:int=-1
-		self.snapshot=None
+
 
 	def __del__(self):
 		ok=("Error","OK")[win32.CloseHandle(self._handle)]
@@ -46,45 +50,45 @@ class Controller:
 		pass
 
 	def _cmd_find_lesser(self,args)->None:
-		print("Find lesser...",args)
+		print("Search for lesser values.")
 		current=memory.scan_memory(self._handle)
+		for m in self.snapshot.copy():
+			a=m.value
+			b=current.read_value_int32(m.address)
+			delta=b-a
+			print(f"Address={m.address} Snapshot={a} Read={b} Delta={delta}")
+			self.snapshot.remove(m)
+			if delta<0:
+				self.snapshot.append(Match(m.address,b))
+		if len(self.snapshot)>0:
+			self._history.append("-")
+		self.print_matches()
 
-		if self.snapshot:
-			for m in self._matches.copy(): # Copy to avoid 'RuntimeError: Set changed size during iteration'
-				print(m)
-				a=self.snapshot.read_value_int32(m)
-				b=current.read_value_int32(m)
-				delta=b-a
-				if delta>=0:
-					self._matches.remove(m)
-			self.print_matches()
-		#	memory.difference_int32(self.snapshot,current)
-		# 	for k,v in self.result.items():
-		# 		#print(k,v)
-		# 		for i,data,other_data in enumerate(zip(v,current[k])):
-		# 			#print(i,data,other_data)
-		# 			if other_data<data:
-		# 				print(i,data,other_data)
-		# 				self._matches.add(k+i)
-		else:
-			print("Error...")
-		self.snapshot=current
 
 	def _cmd_find_value(self,value):
 		""" value: any """
-		self._history.append(value)
 		print(f"Search for {['integer','float'][self._type]} {value}.")
-		print(f"History: {self._history}")
-		result=memory.scan_memory(self._handle)
-		print(f"Total size: {pretty.pretty_size(result.size())}.")
+		scan_result=memory.scan_memory(self._handle)
+		print(f"Scanned size: {pretty.pretty_size(scan_result.size())}.")
 		encoding=['i','f'][self._type]
-		new_matches=set(result.search(struct.pack(encoding,value)))
-		if len(self._matches)==0:
-			self._matches=new_matches
+		current_matches=set([x.address for x in self.snapshot])
+		print("curr=",current_matches)
+		new_matches=set(scan_result.search(struct.pack(encoding,value)))
+		if len(current_matches)>0:
+			intersection=current_matches.intersection(new_matches)
 		else:
-			self._matches=self._matches.intersection(new_matches)
+			intersection=new_matches
+
+		# Only update history when something is found.
+		if len(intersection)>0:
+			self._history.append(value)
+
+		self.snapshot=[]
+		for m in intersection:
+			value=scan_result.read_value_int32(m)
+			self.snapshot.append(Match(m,value))
+
 		self.print_matches()
-		self.snapshot=result
 
 	def _cmd_help(self,tokens)->None:
 		print("Available commands:")
@@ -111,8 +115,8 @@ class Controller:
 			# Write at address.
 			if tokens[1]=="*":
 				pass
-				for m in self._matches:
-					ok=ok and memory.write(data,self._handle,m)
+				#for m in self._matches:
+				#	ok=ok and memory.write(data,self._handle,m)
 			else:
 				address=int(tokens[1])
 				ok=ok and memory.write(data,self._handle,address)
@@ -122,8 +126,9 @@ class Controller:
 
 	def _cmd_reset(self,tokens)->None:
 		print("Search reset.")
-		self._matches=set()
-		self._history=[]
+		self._history:list=[]
+		self._type:int=-1
+		self.snapshot:list[Match]=[]
 
 	def _get_process_handle(self)->None:
 		while self._handle==None:
@@ -180,16 +185,22 @@ class Controller:
 			except ValueError:
 				pass
 
+	def _snapshot_addresses(self)->list:
+		return [x.address for x in self.snapshot]
+
 	def print_matches(self):
-		if len(self._matches)>0:
-			print(f"{len(self._matches)} matches.\nAddresses: {pretty.format_big_list(self._matches)}")
+		print(f"History: {self._history}")
+		if len(self.snapshot)>0:
+			print(f"{len(self.snapshot)} matches.\nAddresses: {pretty.format_big_list([x.address for x in self.snapshot])}")
 		else:
 			print("No matches.")
+		for x in self.snapshot:
+			print(x)
 
 def main():
 	mem=memory.MemoryBlocks({
 			0:b"d\x00\x00\x00\x0C\x00\x00\x00____",
-			64:b"abcdefghd\0\0\0\0\1\2\50\0\0\0",
+			64:b"abcdefgh\0\0\0\0\1\2\50\0\0\0",
 			1000:b"\x00\x00\xc8\x42",# float32 100.0 0x48C80000
 			1200:b"\2\0\0\0\2\0\0\0\x0A\0\0\0\x64\0\0\0"
 			})
@@ -201,11 +212,11 @@ def main():
 		return mem
 
 	def mock_write(data,handle,address):
-		mem.write(address,data)
+		ok=mem.write(address,data)
 		print(f"Mock write {data} at {address}.")
 		for k,v in mem.items():
 			print(k," ",v)
-		return True
+		return ok
 
 	processes.find_pid_by_process_name=mock_find_pid_by_process_name
 	win32.OpenProcess=lambda *x:1234
