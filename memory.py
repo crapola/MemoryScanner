@@ -51,10 +51,20 @@ class MemoryBlocks(MutableMapping):
 		block=self._block_from_absolute_address(address)
 		return self._store.__getitem__(block[0])[block[1]] if block else None
 
+	def read_value_float32(self,address:int)->float:
+		block_info=self._block_from_absolute_address(address)
+		if not block_info:
+			print("Invalid address:",address)
+			return None
+		closest_block,offset=block_info
+		read=self._store.__getitem__(closest_block)[offset:offset+4]
+		return struct.unpack("f",read)[0]
+
 	def read_value_int32(self,address:int)->int:
 		""" Read value from address. Return None if address not in blocks. """
 		block_info=self._block_from_absolute_address(address)
 		if not block_info:
+			print("Invalid address:",address)
 			return None
 		closest_block,offset=block_info
 		read=self._store.__getitem__(closest_block)[offset:offset+4]

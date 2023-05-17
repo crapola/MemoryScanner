@@ -54,9 +54,12 @@ class Controller:
 		current=memory.scan_memory(self._handle)
 		for m in self.snapshot.copy():
 			a=m.value
-			b=current.read_value_int32(m.address)
+			read_func=[current.read_value_int32,current.read_value_float32][self._type]
+			b=read_func(m.address)
+			if not b:
+				continue
 			delta=b-a
-			print(f"Address={m.address} Snapshot={a} Read={b} Delta={delta}")
+			#print(f"Address={m.address} Snapshot={a} Read={b} Delta={delta}")
 			self.snapshot.remove(m)
 			if delta<0:
 				self.snapshot.append(Match(m.address,b))
@@ -72,7 +75,6 @@ class Controller:
 		print(f"Scanned size: {pretty.pretty_size(scan_result.size())}.")
 		encoding=['i','f'][self._type]
 		current_matches=set([x.address for x in self.snapshot])
-		print("curr=",current_matches)
 		new_matches=set(scan_result.search(struct.pack(encoding,value)))
 		if len(current_matches)>0:
 			intersection=current_matches.intersection(new_matches)
@@ -114,9 +116,8 @@ class Controller:
 			data:bytes=struct.pack(pack_type,value)
 			# Write at address.
 			if tokens[1]=="*":
-				pass
-				#for m in self._matches:
-				#	ok=ok and memory.write(data,self._handle,m)
+				for a in self._snapshot_addresses():
+					ok=ok and memory.write(data,self._handle,a)
 			else:
 				address=int(tokens[1])
 				ok=ok and memory.write(data,self._handle,address)
@@ -194,8 +195,8 @@ class Controller:
 			print(f"{len(self.snapshot)} matches.\nAddresses: {pretty.format_big_list([x.address for x in self.snapshot])}")
 		else:
 			print("No matches.")
-		for x in self.snapshot:
-			print(x)
+		#for x in self.snapshot:
+		#	print(x)
 
 def main():
 	mem=memory.MemoryBlocks({
