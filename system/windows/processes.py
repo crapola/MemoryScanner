@@ -1,14 +1,13 @@
 import ctypes
 from ctypes import sizeof
 from ctypes.wintypes import DWORD, HANDLE, HMODULE, WCHAR
-from typing import Dict, Tuple
 
-from win32 import (CloseHandle, EnumProcesses, EnumProcessModulesEx,
-                   GetModuleBaseName, GetProcessImageFileNameA, OpenProcess,
-                   PrintLastError)
+from .win32 import (CloseHandle, EnumProcesses, EnumProcessModulesEx,
+                    GetModuleBaseName, GetProcessImageFileNameA, OpenProcess,
+                    PrintLastError)
 
 
-def get_all_process_ids()->Tuple[int]:
+def get_all_process_ids()->tuple[int]:
 	"""
 	Return list of running processes PIDs.
 	"""
@@ -22,7 +21,7 @@ def get_all_process_ids()->Tuple[int]:
 	return tuple(buffer[:count])
 
 # https://docs.microsoft.com/en-us/windows/win32/psapi/enumerating-all-processes
-def processes()->Dict[int,str]:
+def processes()->dict[int,str]:
 	"""
 	Return running processes as a dictionary where keys are PIDs and values are
 	process names.
@@ -45,11 +44,11 @@ def processes()->Dict[int,str]:
 		else:
 			# OpenProcess is expected to fail for some PIDs.
 			# PrintLastError("OpenProcess")
-			return None
+			return ""
 		return szprocessname.value
 	pids=get_all_process_ids()
 	if not pids:
-		return tuple()
+		return dict()
 	result={}
 	for p in pids:
 		name=process_name(p)

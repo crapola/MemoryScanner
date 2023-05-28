@@ -1,4 +1,4 @@
-from typing import Iterable
+from typing import Collection
 
 # Taken from https://stackoverflow.com/a/12912296
 def pretty_size(s)->str:
@@ -10,6 +10,7 @@ def pretty_size(s)->str:
 		(1<<10,' KB'),
 		(1,(' Byte',' Bytes')),
 	]
+	factor,suffix=units[-1]
 	for factor,suffix in units:
 		if s>=factor:
 			break
@@ -24,7 +25,7 @@ def pretty_size(s)->str:
 			suffix=multiple
 	return str(amount)+suffix
 
-def format_big_list(lst:Iterable)->str:
+def format_big_list(lst:Collection)->str:
 	lst_str=','.join([str(x) for x in tuple(lst)[0:5]])
 	if len(lst)>10:
 		return f"{lst_str} and {len(lst)-5} more... "
@@ -32,6 +33,10 @@ def format_big_list(lst:Iterable)->str:
 		return lst_str
 
 if __name__=="__main__":
+	print(pretty_size(-100))
+	print(pretty_size(0))
+	print(pretty_size(1000))
+	print(pretty_size(10000000))
 	print(format_big_list([1]*10))
 	print(format_big_list([1]*12))
 	print(format_big_list([1]*100))

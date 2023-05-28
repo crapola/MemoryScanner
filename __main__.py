@@ -1,8 +1,7 @@
-import controller
+
+import interface
 
 def main():
-	c=controller.Controller()
-	c.run()
-
+	interface.Interface().run()
 if __name__=="__main__":
 	main()
